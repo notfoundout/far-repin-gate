@@ -1,9 +1,10 @@
-# protected-repin-gate: owner-controlled gate for Project FAR.
-# Workflow registration refresh.
-# This repository must remain inaccessible to agent integrations.
-
+# protected-repin-gate: template for the owner's SEPARATE gate repository (never Project-FAR).
+#
+# Copy this file unchanged to .github/workflows/protected-repin-gate.yml in the gate repository,
+# then replace the three REPLACE values. Everything else is fixed. It uses no third-party actions,
+# gives GITHUB_TOKEN no permissions, and hands the App key only to the step that needs it, from the
+# `far-repin-gate` environment (deployment branches: main only). Pull requests cannot trigger it.
 name: protected-repin-gate
-
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -14,28 +15,23 @@ on:
         type: choice
         options: [evaluate, audit]
         default: evaluate
-
 permissions: {}
-
 concurrency:
   group: protected-repin-gate
   cancel-in-progress: false
-
 jobs:
   gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: far-repin-gate
-
     env:
       FAR_REPOSITORY: notfoundout/Project-FAR
       FAR_REPOSITORY_ID: "1283452680"
-      FAR_DEPLOYED_COMMIT: 5944f07f2c8884a804ba774ae91c637286c8b912
+      FAR_DEPLOYED_COMMIT: ebf3258823102771605679cd4308cce219e31cc8
       FAR_APP_ID: "5073230"
       FAR_GATE_REPOSITORY_ID: "1387422283"
-
     steps:
-      - name: Check out the pinned evaluator
+      - name: Check out the pinned evaluator (git objects only; no candidate code)
         run: |
           set -euo pipefail
           git init -q deploy
@@ -44,9 +40,14 @@ jobs:
             "$FAR_DEPLOYED_COMMIT"
           git -C deploy -c advice.detachedHead=false checkout -q FETCH_HEAD
           test "$(git -C deploy rev-parse HEAD)" = "$FAR_DEPLOYED_COMMIT"
-
       - name: Run one gate cycle
         env:
           FAR_APP_PRIVATE_KEY: ${{ secrets.FAR_APP_PRIVATE_KEY }}
           FAR_MODE: ${{ inputs.mode || 'evaluate' }}
-        run: python3 deploy/far_validation/repin_gate_app.py actions --mode "$FAR_MODE"
+        run: |
+          set -euo pipefail
+          if [[ "$FAR_MODE" == "audit" ]]; then
+            python3 deploy/far_validation/repin_protection_audit.py
+          else
+            python3 deploy/far_validation/repin_gate_app.py actions --mode evaluate
+          fi
