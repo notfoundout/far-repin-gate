@@ -1,4 +1,5 @@
 # protected-repin-gate: owner-controlled gate for Project FAR.
+# Workflow registration refresh.
 # This repository must remain inaccessible to agent integrations.
 
 name: protected-repin-gate
